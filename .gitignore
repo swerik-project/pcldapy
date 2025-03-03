@@ -1,5 +1,5 @@
 config.json
-env/*
-Runs/*
-stored_samples/*
+env
+Runs
+stored_samplers
 **/*.jar
