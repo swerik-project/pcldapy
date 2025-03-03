@@ -1,4 +1,3 @@
-
 import gc
 import jpype
 import json
@@ -6,7 +5,7 @@ import warnings
 
 
 
-def write_cfig(slc, cfg_fn):
+def write_cfig(slc, cfg_fn, jar_fn=None):
     """
     Take a config object and a file name, write the config to a json file
 
@@ -74,7 +73,7 @@ def write_cfig(slc, cfg_fn):
         "LogUtil",
     ]
 
-    cfg_out = {}
+    slc_out = {}
     for k, v in slc.__class__.__dict__.items():
         if "lpha" in k:
             print("!!!!!~~~~~", k)
@@ -99,6 +98,17 @@ def write_cfig(slc, cfg_fn):
                 except:
                     [print(e) for e in E]
 
+    jars_out = {}
+    with open(cfg_fn, 'r') as oldconfig:
+        oslc = json.load(oldconfig)
+        if "jars" in oslc:
+            jars_out = oslc["jars"]
+
+    for k, v in jars_dict.items:
+        if k is not None:
+            jars_out[k] = v
+
+    cfg_out = {"pclda_config": slc_out, "jars": jars_out}
     with open(cfg_fn, "w+") as outf:
         json.dump(cfg_out, outf, default=_custom_serializer, ensure_ascii=False, indent=4)
 
@@ -115,6 +125,7 @@ def new_simple_lda_config(
         topic_interval=10,
         tmpdir="/tmp",
         topic_priors="priors.txt",
+        jar_dict = {None:None},
         cfg_fn = None
     ):
     """
@@ -172,7 +183,7 @@ def new_simple_lda_config(
 
 
     if cfg_fn is not None:
-        write_config(slc, cfg_fn)
+        write_config(slc, cfg_fn, jar_dict=jar_dict)
 
     return slc
 
@@ -209,10 +220,10 @@ def load_lda_config(cfg_fn):
         j["Beta"] = j["NoTopics"] / 50
 
     # Initialize SimpleLDAConfiguration
-    slc = new_simple_lda_config()
+    slc = new_simple_lda_config(jar_dict=j["jars"])
 
     # replace slc init values with dict
-    for k, v in j.items():
+    for k, v in j["pclda_config"].items():
         method_name = f"set{k}"
         method = getattr(slc, method_name, None)
         if method:
@@ -222,7 +233,7 @@ def load_lda_config(cfg_fn):
                 method(v)
         else:
             warnings.warn(f"Unrecognized key in provided config file :: {k} = {v}")
-    return slc
+    return slc, j["jars"]
 
 
 def load_lda_dataset(fn, ldaconfig):
