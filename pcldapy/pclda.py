@@ -1,11 +1,13 @@
 import gc
 import jpype
 import json
+import os
+import sys
 import warnings
 
 
 
-def write_cfig(slc, cfg_fn, jar_fn=None):
+def write_config(slc, cfg_fn, jar_dict=None):
     """
     Take a config object and a file name, write the config to a json file
 
@@ -75,28 +77,28 @@ def write_cfig(slc, cfg_fn, jar_fn=None):
 
     slc_out = {}
     for k, v in slc.__class__.__dict__.items():
-        if "lpha" in k:
-            print("!!!!!~~~~~", k)
+        #if "lpha" in k:
+        #    print("!!!!!~~~~~", k)
         if k.startswith("get"):
             E = []
-            print(k)
+        #    print(k)
             if k[3:] not in skip_keys:
                 try:
-                    cfg_out[k[3:]] = getattr(slc,k,None)()
+                    slc_out[k[3:]] = getattr(slc,k,None)()
                 except Exception as e:
                     E.append(f"  calling {k} didnt work: {e}")
                     try:
                         E.append(f"  -> trying w/ default values")
-                        cfg_out[k[3:]] = getattr(slc,k,None)(defaults[k[3:]])
+                        slc_out[k[3:]] = getattr(slc,k,None)(defaults[k[3:]])
 
                     except Exception as e:
-                #        pass
-                        E.append(f" !! oh no: {e}")
-                try:
-                    print("  --", cfg_out[k[3:]])
-                    print("  ---- OK")
-                except:
-                    [print(e) for e in E]
+                        pass
+        #                E.append(f" !! oh no: {e}")
+        #        try:
+        #            print("  --", slc_out[k[3:]])
+        #            print("  ---- OK")
+        #        except:
+        #            [print(e) for e in E]
 
     jars_out = {}
     with open(cfg_fn, 'r') as oldconfig:
@@ -104,7 +106,7 @@ def write_cfig(slc, cfg_fn, jar_fn=None):
         if "jars" in oslc:
             jars_out = oslc["jars"]
 
-    for k, v in jars_dict.items:
+    for k, v in jar_dict.items():
         if k is not None:
             jars_out[k] = v
 
@@ -125,7 +127,7 @@ def new_simple_lda_config(
         topic_interval=10,
         tmpdir="/tmp",
         topic_priors="priors.txt",
-        jar_dict = {None:None},
+        jar_dict = {},
         cfg_fn = None
     ):
     """
@@ -144,6 +146,8 @@ def new_simple_lda_config(
         topic_interval: how often to print topic info during sampling
         tmpdir: temporary directory for intermediate storage of logging data (default "tmp")
         topic_priors: text file with 'prior spec' with one topic per line with format: <topic nr(zero idxed)>, <word1>, <word2>, etc
+        jar_dict: named jar file dict. If you only work with on jar file this should be `{'default': 'path/to/jarfile'}`
+        cfg_fn: path to config file. if the file exists, it will be updated with provided values, if not the new config will be written to a json file.
 
     Returns
 
@@ -181,6 +185,15 @@ def new_simple_lda_config(
     slc.setHyperparamOptimInterval(jpype.JInt(topic_interval))
     slc.setNoPreprocess(True)
 
+    print(len(jar_dict))
+    if len(jar_dict) == 0:
+        warnings.warn("You need at least one PCLDA jarfile to work with this library, but you haven't provided one.")
+        inp = input("Do you want to provide a default PCLDA jar file now? Enter the path from the cwd (or q to exit): ")
+        if inp == 'q':
+            print("Ok, exiting")
+            sys.exit()
+        else:
+            jar_dict = {"default": os.path.abspath(inp)}
 
     if cfg_fn is not None:
         write_config(slc, cfg_fn, jar_dict=jar_dict)
