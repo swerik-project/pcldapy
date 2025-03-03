@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "pcldapy"
+version = "v0.0.1"
+description = "Python copy of pcldar"
+authors = ["BobBorges <robert.borges@statistik.uu.se>"]
+packages = [
+    { include = "pcldapy", from = "" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+pandas = "*"
+numpy = "*"
+matplotlib = "*"
+jpype1 = "*"
+
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
