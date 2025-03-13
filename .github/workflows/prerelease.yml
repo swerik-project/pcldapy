@@ -82,11 +82,21 @@ jobs:
       run: |
         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
+        echo $PWD
+        git status
+        ls -l
+        echo "add CITATION file"
         git add CITATION.cff
+        echo "commit CITATION file"
         git commit -m "chore: bump version nr in cff file"
+        echo "add pyproject file"
         git add pyproject.toml
+        echo "commit pyproject file"
         git commit -m "chore: bump version nr in pyproject.toml file"
+        ls -l docs/
+        echo "add docs"
         git add docs
+        echo "commit docs"
         git commit -m "chore: update docs"
 
     - name: Push changes

@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "Python pclda wrapper for topic modelling"
+title: "pcldapy"
+version: v0.0.1
+authors:
+  - family-names: Borges
+    given-names: Robert
+    orcid: "https://orcid.org/0000-0002-7647-4048"
+    alias: BobBorges
+date-released: 2025-03-13
+identifiers:
+  - description: Repository basename
+    type: other
+    value: pcldapy
+repository-code: "https://github.com/swerik-project/pcldapy"
+url: "https://swerik-project.github.io/pcldapy"
+type: software
