@@ -86,7 +86,10 @@ jobs:
         git commit -m "chore: bump version nr in cff file"
         git add pyproject.toml
         git commit -m "chore: bump version nr in pyproject.toml file"
-        git add docs
+        git add docs/index.html
+        git add docs/search.js
+        git add docs/pcldapy.html
+        git add docs/pcldapy/
         git commit -m "chore: update docs"
 
     - name: Push changes
