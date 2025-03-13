@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pcldapy"
-version = "v0.0.1"
+version = "v0.0.0"
 description = "Python copy of pcldar"
 authors = ["BobBorges <robert.borges@statistik.uu.se>"]
 packages = [
