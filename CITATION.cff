@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "Python pclda wrapper for topic modelling"
 title: "pcldapy"
-version: v0.0.0
+version: v0.0.1
 authors:
   - family-names: Borges
     given-names: Robert
