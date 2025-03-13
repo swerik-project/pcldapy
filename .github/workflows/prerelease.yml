@@ -85,15 +85,18 @@ jobs:
         echo $PWD
         git status
         ls -l
+        echo "add CITATION file"
         git add CITATION.cff
+        echo "commit CITATION file"
         git commit -m "chore: bump version nr in cff file"
+        echo "add pyproject file"
         git add pyproject.toml
+        echo "commit pyproject file"
         git commit -m "chore: bump version nr in pyproject.toml file"
         ls -l docs/
-        git add docs/index.html
-        git add docs/search.js
-        git add docs/pcldapy.html
-        git add docs/pcldapy/
+        echo "add docs"
+        git add docs
+        echo "commit docs"
         git commit -m "chore: update docs"
 
     - name: Push changes
