@@ -7,6 +7,15 @@ import sys
 import warnings
 
 
+def ensure_java(classpath, java_home="/usr/lib/jvm/java-11-openjdk"):
+    print(jpype.isJVMStarted())
+    print(classpath, os.path.exists(classpath))
+    if not jpype.isJVMStarted():
+        # TODO java_home var does nothing
+        jpype.startJVM(jpype.getDefaultJVMPath(), "-Dfile.encoding=UTF-8", "-Xmx150g", classpath=[os.path.abspath(classpath)])
+        print(jpype.getDefaultJVMPath())
+    print(jpype.isJVMStarted())
+
 
 
 def _get_java_types():
@@ -42,12 +51,20 @@ def write_config(slc, cfg_fn, jar_dict=None):
         try:
             return json.JSONEncoder().default(obj)
         except TypeError:
+            
             try:
+                # Handle Java strings from JPype
+                if hasattr(obj, 'getClass') and obj.getClass().getName() == 'java.lang.String':
+                    return str(obj)  # or obj.toString()
                 return vars(obj)['_jstr']
-            except Exception as e:
+            except Exception:
+                return f"Non-serializable: {type(obj).__name__}" 
+            #try:
+            #    return vars(obj)['_jstr']
+            #except Exception as e:
             #    print(f"Non-serializable: {obj}, {vars(obj)} {vars(obj.__class__)} :: {e}\n\n")
-                return f"Non-serializable: {type(obj).__name__}"
-    
+            #    return f"Non-serializable: {type(obj).__name__}"
+
     defaults = {
         "VariableSelectionPrior": 0.5,
         "TopicInterval": 10,
@@ -135,11 +152,11 @@ def write_config(slc, cfg_fn, jar_dict=None):
                 print(f"SERIALIZE ERROR: ({k}) {v}, --{str(v)}-- type: {type(v)} ")
 
     jars_out = {}
-    if os.path.exists(cfg_fn):
-        with open(cfg_fn, 'r') as oldconfig:
-            oslc = json.load(oldconfig)
-            if "jars" in oslc:
-                jars_out = oslc["jars"]
+
+    #with open(cfg_fn, 'r') as oldconfig:
+    #    oslc = json.load(oldconfig)
+    #    if "jars" in oslc:
+    #        jars_out = oslc["jars"]
 
     for k, v in jar_dict.items():
         if k is not None:
@@ -151,20 +168,19 @@ def write_config(slc, cfg_fn, jar_dict=None):
 
 
 def new_simple_lda_config(
-        dataset="dataset.txt",
-        nr_topics=20,
-        alpha=None,
-        beta=None,
-        iterations=2000,
-        rareword_threshold=10,
-        optim_interval=-1,
-        stoplist_fn="stoplist.txt",
-        topic_interval=10,
-        tmpdir="/tmp",
-        topic_priors="priors.txt",
-        jar='default',
+        dataset = "dataset.txt",
+        nr_topics = 20,
+        alpha = None,
+        beta = None,
+        iterations = 2000,
+        rareword_threshold = 10,
+        optim_interval = -1,
+        stoplist_fn = "stoplist.txt",
+        topic_interval = 10,
+        tmpdir = "/tmp",
+        topic_priors = "priors.txt",
+        jar_key =  "default",
         jar_dict = {},
-        cfg_fn = None
     ):
     """
     Create a new LDA config file with default values, unless otherwise specified.
@@ -216,11 +232,34 @@ def new_simple_lda_config(
     lu = jpype.JClass("cc.mallet.util.LoggingUtils")()
     lu.checkAndCreateCurrentLogDir(tmpdir)
 
+    print(len(jar_dict))
+    if len(jar_dict) == 0:
+        warnings.warn("You need at least one PCLDA jarfile to work with this library, but you haven't provided one.")
+        inp = input("Do you want to provide a default PCLDA jar file now? Enter the path from the cwd (or q to exit): ")
+        if inp == 'q':
+            print("Ok, exiting")
+            sys.exit()
+        else:
+            jar_dict = {"default": os.path.abspath(inp)}
+
     if alpha is None:
         alpha = 50 / nr_topics
 
     if beta is None:
         beta = nr_topics / 5
+    
+    # make sure jave is running
+    ensure_java(jar_dict[jar_key])
+    
+    # Initialize LoggingUtils
+    try:
+        lu = jpype.JClass("cc.mallet.util.LoggingUtils")()
+        print(lu)
+    except Exception as e:
+        print(e)
+        exit()
+    
+    lu.checkAndCreateCurrentLogDir(tmpdir)
 
     # Initialize SimpleLDAConfiguration
     slc = jpype.JClass("cc.mallet.configuration.SimpleLDAConfiguration")()
@@ -242,10 +281,6 @@ def new_simple_lda_config(
     slc.setDatasetFilename(dataset)
     slc.setHyperparamOptimInterval(jpype.JInt(topic_interval))
     slc.setNoPreprocess(True)
-
-    if cfg_fn is not None:
-        write_config(slc, cfg_fn, jar_dict=jar_dict)
-
     return slc
 
 
@@ -265,7 +300,7 @@ def load_lda_config(cfg_fn, jar='default'):
     with open(cfg_fn, 'r') as inf:
         j = json.load(inf)
 
-    if "Beta" not in j["pclda_config"] or j["pclda_config"]["Beta"] is None:
+    if "Beta" not in j or j["Beta"] is None:
         j["pclda_config"]["Beta"] = j["pclda_config"]["NoTopics"] / 50
 
     # Initialize SimpleLDAConfiguration
