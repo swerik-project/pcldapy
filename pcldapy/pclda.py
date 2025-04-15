@@ -2,6 +2,7 @@ import gc
 import jpype
 import json
 import os
+import pickle
 import sys
 import warnings
 
@@ -16,6 +17,24 @@ def ensure_java(classpath, java_home="/usr/lib/jvm/java-11-openjdk"):
     print(jpype.isJVMStarted())
 
 
+
+def _get_java_types():
+    java_types = {
+            "Alpha": jpype.JDouble,
+            "Beta": jpype.JDouble,
+            "HyperparamOptimInterval": jpype.JInt,
+            "NoBatches": jpype.JInt,
+            "NoIters": jpype.JInt,
+            "NoTopicBatches": jpype.JInt,
+            "RareThreshold": jpype.JInt,
+            "StartDiagnostic": jpype.JInt,
+            "TfIdfThreshold": jpype.JInt,
+            "TopicInterval": jpype.JInt,
+            "SavedSamplerDirectory": jpype.JClass("java.lang.String"),
+            "SavedSamplerDir": jpype.JClass("java.lang.String"),
+        }
+    return java_types
+ 
 def write_config(slc, cfg_fn, jar_dict=None):
     """
     Take a config object and a file name, write the config to a json file
@@ -116,8 +135,24 @@ def write_config(slc, cfg_fn, jar_dict=None):
         #            print("  ---- OK")
         #        except:
         #            [print(e) for e in E]
+    for k, v in slc_out.items():
+        if str(type(v)).endswith("Integer'>"):
+            slc_out[k] = int(v)
+        elif str(type(v)).endswith("String'>"):
+            slc_out[k] = str(v)
+        elif str(type(v)).endswith("Double'>"):
+            slc_out[k] = float(v)
+    for k, v in slc_out.items():
+        try:
+            pickle.dumps(v)
+        except:
+            try:
+                picke.dump(vars(v)['_jstr'])
+            except:
+                print(f"SERIALIZE ERROR: ({k}) {v}, --{str(v)}-- type: {type(v)} ")
 
     jars_out = {}
+
     #with open(cfg_fn, 'r') as oldconfig:
     #    oslc = json.load(oldconfig)
     #    if "jars" in oslc:
@@ -163,6 +198,7 @@ def new_simple_lda_config(
         topic_interval: how often to print topic info during sampling
         tmpdir: temporary directory for intermediate storage of logging data (default "tmp")
         topic_priors: text file with 'prior spec' with one topic per line with format: <topic nr(zero idxed)>, <word1>, <word2>, etc
+        jar: jar to load (by key in the jar dict)
         jar_dict: named jar file dict. If you only work with on jar file this should be `{'default': 'path/to/jarfile'}`
         cfg_fn: path to config file. if the file exists, it will be updated with provided values, if not the new config will be written to a json file.
 
@@ -170,6 +206,31 @@ def new_simple_lda_config(
 
         config object
     """
+        # Make sure you can load JVM any time you load a config.
+    def ensure_jvm(jar):
+        if not jpype.isJVMStarted():
+            jpype.startJVM(classpath=[jar])
+    
+
+    if len(jar_dict) == 0:
+        warnings.warn("You need at least one PCLDA jarfile to work with this library, but you haven't provided one.")
+        inp = input("Do you want to provide a default PCLDA jar file now? Enter the path from the cwd (or q to exit): ")
+        if inp == 'q':
+            print("Ok, exiting")
+            sys.exit()
+        else:
+            jar_dict = {"default": os.path.abspath(inp)}
+    
+    target_jar = jar_dict[jar]
+    ensure_jvm(target_jar)
+    
+    java_types = _get_java_types()
+
+    print(jpype.java.lang.System.getProperty("java.class.path"))
+    
+     # Initialize LoggingUtils
+    lu = jpype.JClass("cc.mallet.util.LoggingUtils")()
+    lu.checkAndCreateCurrentLogDir(tmpdir)
 
     print(len(jar_dict))
     if len(jar_dict) == 0:
@@ -223,7 +284,7 @@ def new_simple_lda_config(
     return slc
 
 
-def load_lda_config(cfg_fn):
+def load_lda_config(cfg_fn, jar='default'):
     """
     Load the lda config file from a json file.
 
@@ -235,18 +296,6 @@ def load_lda_config(cfg_fn):
 
         config object
     """
-    java_types = {
-            "Alpha": jpype.JDouble,
-            "Beta": jpype.JDouble,
-            "HyperparamOptimInterval": jpype.JInt,
-            "NoBatches": jpype.JInt,
-            "NoIters": jpype.JInt,
-            "NoTopicBatches": jpype.JInt,
-            "RareThreshold": jpype.JInt,
-            "StartDiagnostic": jpype.JInt,
-            "TfIdfThreshold": jpype.JInt,
-            "TopicInterval": jpype.JInt,
-        }
     # load jaon cfg declaration  as a dict
     with open(cfg_fn, 'r') as inf:
         j = json.load(inf)
@@ -255,7 +304,9 @@ def load_lda_config(cfg_fn):
         j["pclda_config"]["Beta"] = j["pclda_config"]["NoTopics"] / 50
 
     # Initialize SimpleLDAConfiguration
-    slc = new_simple_lda_config(jar_dict=j["jars"])
+    slc = new_simple_lda_config(jar_dict=j["jars"], jar=jar)
+    print(type(slc), slc)
+    java_types = _get_java_types()
 
     # replace slc init values with dict
     for k, v in j["pclda_config"].items():
@@ -268,6 +319,7 @@ def load_lda_config(cfg_fn):
                 method(v)
         else:
             warnings.warn(f"Unrecognized key in provided config file :: {k} = {v}")
+    print(type(slc), slc)
     return slc, j["jars"]
 
 
@@ -315,7 +367,7 @@ def create_lda_dataset(train, test=None, stoplist_fn="stoplist.txt"):
     util = jpype.JClass("cc.mallet.util.LDADatasetStringLoadingUtils")()
     #pipe = util.buildSerialPipe(stoplist_fn, jpype.JNull("cc.mallet.types.Alphabet"), True)
     pipe = util.buildSerialPipe(stoplist_fn, None, True)
-    print(pipe)
+    #print(pipe)
     # Create InstanceList for the training data
     il = jpype.JClass("cc.mallet.types.InstanceList")(pipe)
     il.addThruPipe(jpype.JObject(string_iterator, "java.util.Iterator"))
@@ -357,9 +409,14 @@ def sample_pclda(ldaconfig, ds, iterations=2000, sampler_type="cc.mallet.topics.
     if testset is not None:
         lda.addTestInstances(testset)
 
-    # Perform sampling
-    lda.sample(iterations)
+    print("**********************", iterations)
 
+    # Perform sampling
+    print("********************", iterations, type(iterations))
+    try:
+        lda.sample(iterations)
+    except Exception as e:
+        print("EXCEPTION in lda.sample():", e)
     # If we need to save the sampler, perform the saving procedure
     if save_sampler:
         sampler_dir = jpype.JClass("cc.mallet.configuration.LDAConfiguration").STORED_SAMPLER_DIR_DEFAULT
@@ -369,7 +426,7 @@ def sample_pclda(ldaconfig, ds, iterations=2000, sampler_type="cc.mallet.topics.
         util.saveSampler(jpype.JObject(lda, "cc.mallet.topics.LDAGibbsSampler"),
                          jpype.JObject(ldaconfig, "cc.mallet.configuration.LDAConfiguration"),
                          sampler_folder)
-
+    print("*** retunrn fn")
     return lda
 
 
